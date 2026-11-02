@@ -3,14 +3,18 @@
 # n (%), explicit "Not recorded" rows for variables with missingness, and
 # column totals.
 #
-# Definitions: population = svn_filtered (valid outcome), n=30,449.
+# Definitions: population = svn_filtered with a determinate outcome (current locked n=30,432).
 #
 # Output: table_02_nnu_characteristics.csv
 # ==============================================================================
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -49,14 +53,7 @@ d <- nnu$svn_filtered %>%
             TRUE ~ "Hyperthermia (>37.5)"),
             levels=c("Normal (36.5-37.5)","Mild hypothermia (36.0-36.4)","Moderate hypothermia (32-35.9)",
                      "Severe hypothermia (<32)","Hyperthermia (>37.5)")),
-        resus_clean = toupper(trimws(as.character(resus))),
-        resus_cat = factor(case_when(
-            is.na(resus) | resus_clean %in% c("","NA","NONE","NO","FALSE") ~ "None",
-            grepl("CPR|CARDIO", resus_clean) ~ "CPR",
-            grepl("BVM|BAG.*VALVE|MASK", resus_clean) ~ "BVM",
-            grepl("STIM|SUCT|O2|OXYGEN", resus_clean) ~ "Stimulation/suction/O2",
-            TRUE ~ "Type unknown"),
-            levels=c("None","Stimulation/suction/O2","BVM","CPR","Type unknown")),
+        resus_cat = resus_category(resus),
         apgar5_num = suppressWarnings(as.numeric(apgar5)),
         apgar5_num = ifelse(apgar5_num>=0 & apgar5_num<=10, apgar5_num, NA_real_),
         apgar5_cat = factor(case_when(
@@ -90,17 +87,14 @@ d <- nnu$svn_filtered %>%
             par_num<=4 ~ "Multiparous (2-4)", TRUE ~ "Grand multipara (5+)"),
             levels=c("Primiparous (1st)","Multiparous (2-4)","Grand multipara (5+)")),
         anc_num = suppressWarnings(as.numeric(antenatalcare)),
-        anc = factor(case_when(
-            is.na(anc_num) ~ NA_character_, anc_num==0 ~ "None (0)",
-            anc_num<=3 ~ "Inadequate (1-3)", TRUE ~ "Adequate (>=4)"),
-            levels=c("Adequate (>=4)","Inadequate (1-3)","None (0)")),
+        anc = anc_factor(antenatalcare, antenatalcare_category, short=TRUE),
         typebirth_cat = factor(case_when(
             is.na(typebirth) | trimws(typebirth)=="" ~ NA_character_,
             toupper(trimws(typebirth)) %in% c("S","SINGLETON") ~ "Singleton",
             toupper(trimws(typebirth)) %in% c("TW1","TW2","TWIN1","TWIN2","TWIN") ~ "Twin",
             toupper(trimws(typebirth)) %in% c("TR1","TR2","TR3","TRIPLET") ~ "Triplet",
             TRUE ~ NA_character_), levels=c("Singleton","Twin","Triplet")),
-        # Method of gestational-age estimation (Hannah's Table 3 request).
+        # Method of gestational-age estimation.
         gadating_clean = toupper(trimws(as.character(methodestgest))),
         gadating_cat = factor(case_when(
             is.na(methodestgest) |

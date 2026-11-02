@@ -1,27 +1,12 @@
-# input/
+# Inputs
 
-This folder is where you place the confidential, patient-level Neotree data
-extracts before running `run_all.R`. **These files are not included in this
-repository** — see `DATA_AVAILABILITY.md` at the repo root for how to request
-access.
+No patient data are included. Place these six locked CSV exports here, or set `LBW_INPUT_DIR` to their folder. `run_all.R` checks each one against the MD5 in `config/locked_inputs.csv` and stops if any differs.
 
-Place exactly these six files directly in this folder (no subfolders):
+- `mwi-master-data-20220101-to-20251231.csv`
+- `mwi-matched-nnu-data-20220101-to-20251231.csv`
+- `mwi-maternal-data-20220101-to-20251231.csv`
+- `zim-master-data-20220101-to-20251231.csv`
+- `zim-matched-nnu-data-20220101-to-20251231.csv`
+- `zim-maternal-data-20220101-to-20251231.csv`
 
-| Filename | Contents |
-|---|---|
-| `mwi-matched-nnu-data-20220101-to-20251231.csv` | KCH (Malawi) neonatal-unit admissions, matched to a discharge record |
-| `zim-matched-nnu-data-20220101-to-20251231.csv` | SMCH (Zimbabwe) neonatal-unit admissions, matched to a discharge record |
-| `mwi-maternal-data-20220101-to-20251231.csv` | KCH (Malawi) maternal delivery/outcome records |
-| `zim-maternal-data-20220101-to-20251231.csv` | SMCH (Zimbabwe) maternal delivery/outcome records |
-| `mwi-master-data-20220101-to-20251231.csv` | KCH (Malawi) — every admission, matched or not (used only for the CONSORT flowchart denominator) |
-| `zim-master-data-20220101-to-20251231.csv` | SMCH (Zimbabwe) — every admission, matched or not (used only for the CONSORT flowchart denominator) |
-
-All six cover the study period **1 January 2022 – 31 December 2025** and the
-two study facilities: Kamuzu Central Hospital (KCH, Malawi) and Sally Mugabe
-Central Hospital (SMCH, Zimbabwe). Column requirements are documented in
-`scripts/00a_setup_shared.R`.
-
-Run `Rscript run_all.R` from the repository root once these files are in
-place. `run_all.R` checks for all six by exact filename before doing
-anything else, and will tell you exactly which are missing if the check
-fails.
+`mwi` is KCH and `zim` is SMCH. Matched files hold neonatal admissions linked to discharge outcomes; master files hold every admission, including unmatched ones; maternal files hold delivery records. The Malawi files include `antenatalcare_category` (none, 1-3, >=4 visits), which is also filled where only a range of visits was recorded.

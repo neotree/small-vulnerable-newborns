@@ -4,7 +4,7 @@
 # instead of restricted to the SVN phenotypes alone, admission temperature
 # entered as a continuous per-1degC term (temp_val) instead of temp_cat.
 #
-# Definitions: population is the whole cohort (all four phenotypes, ~30,449)
+# Definitions: population is the whole cohort (all four phenotypes, ~30,424)
 # so Term-AGA is present in the data as the phenotype reference. Same
 # covariates, coding and missing-data handling as
 # MV_regression_SVN_population_continuous_temperature.R; birth weight,
@@ -22,7 +22,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -48,7 +52,7 @@ data <- nnu$svn_filtered %>%
         facility = factor(as.character(facility), levels = c("SMCH", "KCH"))
     )
 
-# Verify the denominator (expect whole cohort ~30,449)
+# Verify the denominator (expect whole cohort ~30,424)
 counts <- data %>%
     group_by(facility, svn_cat4) %>%
     summarise(n = n(), deaths = sum(outcome_bin == 1), .groups = "drop")
@@ -67,7 +71,7 @@ cat(sprintf("Whole cohort: %d  (KCH %d, SMCH %d); deaths %d\n",
             nrow(data),
             sum(data$facility == "KCH"), sum(data$facility == "SMCH"),
             sum(data$outcome_bin == 1)))
-cat("  (Expect ~30,449; phenotype reference = Term-AGA)\n")
+cat("  (Expect ~30,424; phenotype reference = Term-AGA)\n")
 
 # ==============================================================================
 # DERIVE RISK-FACTOR VARIABLES (identical coding to
@@ -111,12 +115,7 @@ data <- data %>%
                                        "25-34 years",">=35 years")),
 
         anc_num = suppressWarnings(as.numeric(antenatalcare)),
-        anc = factor(case_when(
-            is.na(anc_num) ~ NA_character_,
-            anc_num == 0   ~ "None (0 visits)",
-            anc_num <= 3   ~ "Inadequate (1-3 visits)",
-            TRUE           ~ "Adequate (>=4 visits)"
-        ), levels = c("Adequate (>=4 visits)","None (0 visits)","Inadequate (1-3 visits)")),
+        anc = anc_factor(antenatalcare, antenatalcare_category),
 
         typebirth_cat = case_when(
             is.na(typebirth) | trimws(typebirth) == "" ~ NA_character_,
@@ -137,17 +136,7 @@ data <- data %>%
             TRUE ~ NA_character_
         ), levels = c("SVD","Assisted Vaginal","ELCS","EMCS")),
 
-        resus_clean = toupper(trimws(as.character(resus))),
-        resus_cat = case_when(
-            is.na(resus) | resus_clean %in% c("","NA","NONE","NO","FALSE") ~ "None",
-            grepl("CPR|CARDIO", resus_clean)       ~ "CPR",
-            grepl("BVM|BAG.*VALVE|MASK", resus_clean) ~ "BVM",
-            grepl("STIM|SUCT|O2|OXYGEN", resus_clean) ~ "Stimulation/Suction/O2",
-            TRUE ~ "Resuscitation (type unknown)"
-        ),
-        resus_cat = factor(resus_cat,
-                           levels = c("None","Stimulation/Suction/O2","BVM","CPR",
-                                      "Resuscitation (type unknown)")),
+        resus_cat = resus_category(resus),
 
         inout_cat = case_when(
             !is.na(inorout) ~ case_when(

@@ -15,7 +15,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -58,7 +62,7 @@ if (has("typebirth")) {
         levels=c("Singleton","Twin","Triplet"))
 }
 # SVN phenotype among live births (classification as in 02b)
-base$sga_status  <- classify_sga(base$bw_kg, base$gestation_weeks)
+base$sga_status  <- classify_sga(base$bw_kg, base$gestation_weeks, base$gender_std)
 base$svn_category<- factor(make_svn_category(base$sga_status, base$gestation_weeks),
                            levels=c("Term-AGA","Term-SGA","Preterm-AGA","Preterm-SGA"))
 

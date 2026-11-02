@@ -4,7 +4,7 @@
 # Table 7a: Prematurity/RDS, Birth asphyxia/HIE, Neonatal sepsis/infection,
 # Congenital anomalies, Other/unspecified.
 #
-# Definitions: population = svn_filtered (n=30,449; deaths=5,348), matching
+# Definitions: population = svn_filtered (n=30,424; deaths=5,344), matching
 # Table 5/7a.
 #
 # Output: table_07bc_causes_by_svn.csv, table_07bc_causes_by_svn_and_site.csv
@@ -12,7 +12,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")

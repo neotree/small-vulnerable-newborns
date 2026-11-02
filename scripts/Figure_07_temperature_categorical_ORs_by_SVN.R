@@ -4,23 +4,50 @@
 # every phenotype, while only Term-AGA also shows raised risk at
 # hyperthermia (U-shape).
 #
-# Reads: dep_table09_temp_cat_or_overall.csv, dep_table09_temp_cat_or_by_svn.csv
+# Reads: dep_table09_temp_cat_or_by_svn.csv, dep_table09_temp_cat_sample_sizes.csv
 #   (written by dep_Table09_temperature_categorical_OR.R -- run that first)
+#
+# The black reference line is "All-SVN" (pooled Term-SGA + Preterm-AGA +
+# Preterm-SGA), the same column as Supplementary Table S6. All-SVN ORs are
+# computed from the pooled counts as in helper_Table09_temperature_AllSVN_column.R
+# (2x2 OR vs Normal = glm MLE).
 # ==============================================================================
 
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
 
 cat("\n===== Temperature categorical OR by SVN group =====\n")
 
-ov <- read_csv(file.path(OUTPUT_DIR, "dep_table09_temp_cat_or_overall.csv"),
+# --- All-SVN: pooled Term-SGA + Preterm-AGA + Preterm-SGA (Supplementary Table S6) --
+ss <- read_csv(file.path(OUTPUT_DIR, "dep_table09_temp_cat_sample_sizes.csv"),
                show_col_types = FALSE) %>%
-  transmute(series = "Overall", temp_cat, OR)
+  filter(svn_category %in% c("Term-SGA", "Preterm-AGA", "Preterm-SGA")) %>%
+  group_by(temp_cat) %>%
+  summarise(n = sum(n), d = sum(n_deaths), .groups = "drop")
+ref_d <- ss$d[ss$temp_cat == "4_Normal"]
+ref_a <- ss$n[ss$temp_cat == "4_Normal"] - ref_d
+allsvn <- ss %>%
+  filter(temp_cat != "4_Normal") %>%
+  mutate(a = n - d,
+         OR = (d / a) / (ref_d / ref_a),
+         se = sqrt(1 / d + 1 / a + 1 / ref_d + 1 / ref_a),
+         ci_lower = exp(log(OR) - 1.959964 * se),
+         ci_upper = exp(log(OR) + 1.959964 * se),
+         p_value  = 2 * pnorm(-abs(log(OR) / se))) %>%
+  transmute(group = "All-SVN", temp_cat, OR, ci_lower, ci_upper, p_value) %>%
+  bind_rows(tibble(group = "All-SVN", temp_cat = "4_Normal (Reference)", OR = 1,
+                   ci_lower = NA_real_, ci_upper = NA_real_, p_value = NA_real_))
+
+ov <- allsvn %>% transmute(series = group, temp_cat, OR)
 
 bg <- read_csv(file.path(OUTPUT_DIR, "dep_table09_temp_cat_or_by_svn.csv"),
                show_col_types = FALSE) %>%
@@ -32,13 +59,13 @@ cat_labels <- c("Severe\nhypothermia", "Hypothermia", "Mild\nhypothermia",
                 "Normal\n(reference)", "Hyperthermia")
 
 plot_df <- bind_rows(ov, bg) %>%
-  filter(temp_cat %in% cat_levels) %>%
+  filter(temp_cat %in% cat_levels, !is.na(OR)) %>%   # drop not-estimable cells
   mutate(
     temp_f = factor(temp_cat, levels = cat_levels, labels = cat_labels),
-    series = factor(series, levels = c("Overall", SVN_LEVELS))
+    series = factor(series, levels = c("All-SVN", SVN_LEVELS))
   )
 
-series_cols <- c("Overall" = "#222222", SVN_COLOURS)
+series_cols <- c("All-SVN" = "#222222", SVN_COLOURS)
 
 fig8 <- ggplot(plot_df, aes(x = temp_f, y = OR, colour = series, group = series)) +
   geom_hline(yintercept = 1, linetype = "dashed", colour = "grey50") +
@@ -48,10 +75,10 @@ fig8 <- ggplot(plot_df, aes(x = temp_f, y = OR, colour = series, group = series)
   scale_colour_manual(values = series_cols, name = NULL) +
   labs(
     title    = "Temperature-mortality by SVN group",
-    subtitle = "Odds of neonatal death vs normal range (36.5-37.5 degC); log scale",
+    subtitle = "Odds of neonatal death vs normal range (36.5-37.5 \u00b0C); log scale. All-SVN = Term-SGA + Preterm-AGA + Preterm-SGA",
     x        = NULL,
     y        = "Odds ratio (log scale)",
-    caption  = svn_caption("Reference: normal range. Source: script 36 (categorical temperature OR).")
+    caption  = svn_caption("Reference: normal range. Values as in Supplementary Table S6.")
   ) +
   theme_svn(legend_position = "right")
 
@@ -68,13 +95,12 @@ plain_lab <- c("1_SevereHypothermia" = "Severe hypothermia",
                "5_Hyperthermia"       = "Hyperthermia")
 
 tbl8 <- bind_rows(
-  read_csv(file.path(OUTPUT_DIR, "dep_table09_temp_cat_or_overall.csv"), show_col_types = FALSE) %>%
-    mutate(group = "Overall"),
+  allsvn,
   read_csv(file.path(OUTPUT_DIR, "dep_table09_temp_cat_or_by_svn.csv"), show_col_types = FALSE)
 ) %>%
   filter(temp_cat %in% names(plain_lab)) %>%
   transmute(
-    group                = factor(group, levels = c("Overall", SVN_LEVELS)),
+    group                = factor(group, levels = c("All-SVN", SVN_LEVELS)),
     temperature_category = unname(plain_lab[temp_cat]),
     OR                   = round(OR, 3),
     ci_lower             = round(ci_lower, 3),

@@ -4,9 +4,8 @@
 
 All analysis code is openly available in this repository:
 `https://github.com/neotree/small-vulnerable-newborns`. The pipeline
-reproduces every table and figure in the manuscript; see
-`FIGURE_TABLE_SOURCES.md` for the mapping of each result to its source
-script.
+reproduces every table, figure and number in the manuscript; see
+`docs/MANUSCRIPT_MAP.md` for the script behind each result.
 
 ## Data
 

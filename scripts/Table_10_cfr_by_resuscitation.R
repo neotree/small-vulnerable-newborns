@@ -1,24 +1,28 @@
 # ==============================================================================
 # Purpose: Table 10 -- case fatality by resuscitation requirement at birth,
-# on the full 30,449-admission analysis cohort.
+# on the full analysis cohort.
 #
-# Definitions: "Not recorded" is shown as its own row so every admission is
-# accounted for (rows sum to 30,449 / 5,348 deaths), rather than folding
-# missing values into "None". Reports n, deaths and CFR per 1,000 admissions
-# with 95% Wilson CI.
+# Definitions: resuscitation categories come from resus_category() in
+# 00a_setup_shared.R. "Unknown" (the form's Unknown option, or blank) is shown
+# as its own row so every admission is accounted for, rather than folding it
+# into "None". Reports n, deaths and CFR per 1,000 admissions with 95% Wilson CI.
 #
 # Output: table_10_cfr_by_resuscitation.csv
 # ==============================================================================
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
 OUT2 <- OUTPUT_DIR
 suppressPackageStartupMessages({library(dplyr); library(stringr)})
-cat("\n=== Table_11_cfr_by_resuscitation.R ===\n")
+cat("\n=== Table_10_cfr_by_resuscitation.R ===\n")
 
 # Wilson 95% CI for a proportion, returned on the per-1,000 scale.
 wilson1000 <- function(x, n){
@@ -32,7 +36,7 @@ wilson1000 <- function(x, n){
 PH <- c("Term-AGA","Term-SGA","Preterm-AGA","Preterm-SGA")
 
 # ------------------------------------------------------------------------------
-# 30,449 analysis cohort with resuscitation categorised (Not recorded kept)
+# Analysis cohort with resuscitation categorised (Unknown kept)
 # ------------------------------------------------------------------------------
 nnu <- process_nnu_data(load_nnu_data())
 if (!"resus" %in% names(nnu$svn_filtered))
@@ -41,19 +45,14 @@ if (!"resus" %in% names(nnu$svn_filtered))
 cohort <- nnu$svn_filtered %>%
     filter(!is.na(outcome_bin), svn_category %in% PH) %>%
     mutate(
-        resus_clean = toupper(trimws(as.character(resus))),
-        resus_cat = case_when(
-            is.na(resus) | resus_clean %in% c("", "NA", "NR", "U", "UNK", "UNKNOWN",
-                                              "-6", "-7", "-8", "-9") ~ "Not recorded",
-            resus_clean %in% c("NONE", "NO", "N", "FALSE", "0")       ~ "None",
-            grepl("CPR|CARDIO", resus_clean)                          ~ "Cardiopulmonary resuscitation",
-            grepl("BVM|BAG.*VALVE|MASK", resus_clean)                 ~ "Bag-valve-mask ventilation",
-            grepl("STIM|SUCT|O2|OXYGEN", resus_clean)                 ~ "Stimulation / suction / oxygen",
-            TRUE                                                       ~ "Not recorded"),
+        resus_cat = recode(as.character(resus_category(resus)),
+            "Stimulation/Suction/O2" = "Stimulation / suction / oxygen",
+            "BVM"                    = "Bag-valve-mask ventilation",
+            "CPR"                    = "Cardiopulmonary resuscitation"),
         resus_cat = factor(resus_cat,
             levels = c("None", "Stimulation / suction / oxygen",
                        "Bag-valve-mask ventilation", "Cardiopulmonary resuscitation",
-                       "Not recorded")))
+                       "Unknown")))
 
 # ------------------------------------------------------------------------------
 # n, deaths, CFR per 1,000 (95% Wilson CI) by category + Total
@@ -87,4 +86,4 @@ stopifnot(sum(by_cat$n) == nrow(cohort),
           sum(by_cat$deaths) == sum(cohort$outcome_bin == 1))
 cat(sprintf("Reconciles: admissions %d, deaths %d\n",
             nrow(cohort), sum(cohort$outcome_bin == 1)))
-cat("Table_11_cfr_by_resuscitation.R complete.\n")
+cat("Table_10_cfr_by_resuscitation.R complete.\n")

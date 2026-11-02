@@ -8,7 +8,7 @@
 # to 31 December 2025; facilities KCH (Malawi) and SMCH (Zimbabwe).
 #
 # Expects, relative to this file's own folder:
-#   ../input/   the six source CSVs (not committed to the repo)
+#   ../input/   the six source CSVs, birthweight-corrected
 #   ../output/  all/{tables,graphs}/ and uss/{tables,graphs}/
 #
 # Data files (see input/README.md for the full list):
@@ -52,9 +52,16 @@ cat(sprintf("=== POPULATION: %s (outputs -> outputs/%s/) ===\n", POPULATION, POP
 # other way (e.g. interactively with setwd() already done).
 SCRIPT_DIR <- if (exists("SCRIPT_DIR")) SCRIPT_DIR else getwd()
 
-# Data folder: sibling of scripts/, i.e. small-vulnerable-newborns/input/
-DATA_DIR <- if (exists("DATA_DIR")) DATA_DIR else
-    file.path(SCRIPT_DIR, "..", "input")
+# Data folder: sibling of scripts/. Use the locked, already corrected exports listed in
+# config/locked_inputs.csv. This project does not alter the input files.
+PROJECT_ROOT <- normalizePath(file.path(SCRIPT_DIR, ".."), mustWork = TRUE)
+resolve_project_dir <- function(value, fallback) {
+    if (!nzchar(value)) return(file.path(PROJECT_ROOT, fallback))
+    value <- path.expand(value)
+    if (!grepl("^(/|[A-Za-z]:[/\\\\])", value)) value <- file.path(PROJECT_ROOT, value)
+    value
+}
+DATA_DIR <- resolve_project_dir(Sys.getenv("LBW_INPUT_DIR"), "input")
 if (!dir.exists(DATA_DIR))
     stop("Cannot find the data folder at ", DATA_DIR,
          ". Expected input/ next to scripts/ -- see input/README.md for the ",
@@ -77,7 +84,7 @@ rm(.f)
 # output/<all|uss>/tables/ and output/<all|uss>/graphs/. OUTPUT_DIR_MATERNAL
 # and OUTPUT_DIR_NNU are aliases for OUTPUT_DIR (some scripts use one name,
 # some the other; all three resolve to the same folder).
-OUTPUT_ROOT <- file.path(SCRIPT_DIR, "..", "output")
+OUTPUT_ROOT <- resolve_project_dir(Sys.getenv("LBW_OUTPUT_DIR"), "output")
 OUTPUT_DIR_POP      <- file.path(OUTPUT_ROOT, POP_FOLDER)
 OUTPUT_DIR          <- file.path(OUTPUT_DIR_POP, "tables")
 OUTPUT_DIR_MATERNAL <- OUTPUT_DIR
@@ -105,34 +112,54 @@ GA_MIN_NNU <- 24     # minimum GA for NNU SGA analysis (weeks)
 GA_MIN_MAT <- 22     # minimum GA for maternal analysis (weeks)
 GA_MAX     <- 42
 
+# ------------------------------------------------------------------------------
+# BIRTHWEIGHT-FOR-GESTATION PLAUSIBILITY CHECK (NNU) -- AUDIT ONLY
+# Updated 17 September 2026.
+#
+# No record is excluded on this criterion. Implausible birthweights were
+# corrected in the data (input/apply_birthweight_corrections_2026-09-17.R,
+# 21 records, corrected to the discharge-form birthweight after manual review);
+# the remaining 4 were reviewed and kept as recorded.
+#
+# process_nnu_data() runs the criterion as an audit: it counts the records that
+# meet it and warns about any UID not listed in input/bw_ga_reviewed_keep_uids.txt
+# (one UID per line, confidential, not committed), so that a new extract with
+# fresh entry errors is noticed.
+# ------------------------------------------------------------------------------
+IMPLAUSIBLE_BW_TERM_GA_MIN_WEEKS <- 37    # check applies at GA >= 37 weeks
+IMPLAUSIBLE_BW_TERM_MAX_KG       <- 1.0   # ... and birthweight < 1,000 g
+.reviewed_uid_file <- file.path(DATA_DIR, "bw_ga_reviewed_keep_uids.txt")
+BW_GA_REVIEWED_KEEP_UIDS <- if (file.exists(.reviewed_uid_file))
+    trimws(readLines(.reviewed_uid_file, warn = FALSE)) else character(0)
+
+is_implausible_bw_for_ga <- function(bw_kg, ga_weeks) {
+    is.finite(bw_kg) & is.finite(ga_weeks) &
+        ga_weeks >= IMPLAUSIBLE_BW_TERM_GA_MIN_WEEKS &
+        bw_kg    <  IMPLAUSIBLE_BW_TERM_MAX_KG
+}
+
 # ==============================================================================
-# INTERGROWTH-21st 10TH PERCENTILE REFERENCE (grams)
-# Weeks 14-23: Fetal EFW; Weeks 24-42: Neonatal birthweight
+# INTERGROWTH-21st 10TH CENTILE REFERENCE (grams)
+# Birthweight: published boys/girls values for 24+0 through 42+6.
+# Source: official INTERGROWTH-21st Oxford newborn/very-preterm weight tables;
+# full day-level transcription in references/official_intergrowth_p10_birthweight_24_42.csv.
+# Weeks 22-23 use the published exact-week fetal EFW 10th centiles as
+# a study-defined proxy for measured birthweight in the maternal analysis.
+# Weeks 14-21 have no lookup because they are outside the study cohort.
+# There is no official combined-sex 10th-centile table: the unknown-sex
+# proxy is the arithmetic midpoint of the official boys/girls thresholds.
+# Do not describe that proxy as an official unisex centile.
 # ==============================================================================
-PCT10_UNISEX <- c(
-    "14"=76,  "15"=98,  "16"=125, "17"=158, "18"=198, "19"=244,
-    "20"=298, "21"=359, "22"=429, "23"=508,
-    "24"=560, "25"=640, "26"=740, "27"=840, "28"=940,  "29"=1060,
-    "30"=1190,"31"=1340,"32"=1500,
-    "33"=1580,"34"=1780,"35"=2000,"36"=2220,"37"=2440, "38"=2650,
-    "39"=2850,"40"=3010,"41"=3150,"42"=3260
-)
-PCT10_BOYS <- c(
-    "14"=76,  "15"=98,  "16"=125, "17"=158, "18"=198, "19"=244,
-    "20"=298, "21"=359, "22"=429, "23"=508,
-    "24"=580, "25"=660, "26"=760, "27"=870, "28"=980,  "29"=1110,
-    "30"=1250,"31"=1410,"32"=1580,
-    "33"=1600,"34"=1810,"35"=2030,"36"=2250,"37"=2480, "38"=2700,
-    "39"=2900,"40"=3070,"41"=3210,"42"=3320
-)
-PCT10_GIRLS <- c(
-    "14"=76,  "15"=98,  "16"=125, "17"=158, "18"=198, "19"=244,
-    "20"=298, "21"=359, "22"=429, "23"=508,
-    "24"=540, "25"=620, "26"=720, "27"=810, "28"=910,  "29"=1030,
-    "30"=1150,"31"=1300,"32"=1460,
-    "33"=1540,"34"=1750,"35"=1960,"36"=2180,"37"=2400, "38"=2610,
-    "39"=2800,"40"=2960,"41"=3090,"42"=3190
-)
+PCT10_UNISEX <- c("22"=481, "23"=538)
+PCT10_BOYS   <- c("22"=481, "23"=538)
+PCT10_GIRLS  <- c("22"=481, "23"=538)
+
+INTERGROWTH_REFERENCE <- read.csv(file.path(SCRIPT_DIR, "..", "references",
+    "official_intergrowth_p10_birthweight_24_42.csv"), stringsAsFactors = FALSE)
+stopifnot(nrow(INTERGROWTH_REFERENCE) == 266L,
+          !anyDuplicated(INTERGROWTH_REFERENCE[c("sex", "week", "day")]))
+# Gestation encodes completed weeks and days: 33.4 means 33+4; 33 means 33+0.
+# Do not round this notation to the nearest whole week.
 
 # ==============================================================================
 # CATEGORY LEVELS (for ordered factors)
@@ -210,21 +237,58 @@ bw_kg_canonical <- function(df) {
 # ==============================================================================
 
 get_10th_pct <- function(ga_weeks, gender_val = NA_character_) {
-    if (is.na(ga_weeks)) return(NA_real_)
-    ga  <- round(ga_weeks)
-    gac <- as.character(ga)
-    if (ga < 14 || ga > 42) return(NA_real_)
+    if (is.na(ga_weeks) || !is.finite(ga_weeks)) return(NA_real_)
     g <- toupper(trimws(as.character(gender_val)))
-    pct <- if (!is.na(g) && g %in% c("M","MALE","BOY"))   PCT10_BOYS[gac]
-      else if (!is.na(g) && g %in% c("F","FEMALE","GIRL")) PCT10_GIRLS[gac]
-      else PCT10_UNISEX[gac]
-    if (is.na(pct)) NA_real_ else as.numeric(pct) / 1000
+    sex <- if (!is.na(g) && g %in% c("M", "MALE", "BOY")) "B" else
+           if (!is.na(g) && g %in% c("F", "FEMALE", "GIRL")) "G" else "U"
+    week <- floor(ga_weeks)
+    day <- round(10 * (ga_weeks - week))
+    if (day < 0 || day > 6 || abs(ga_weeks - (week + day/10)) > 1e-6)
+        return(NA_real_) # .7-.9 cannot be interpreted as weeks+days
+    # The pre-agreed upper bound is 42+0, not the end of week 42.
+    if (ga_weeks < 22 || ga_weeks > GA_MAX) return(NA_real_)
+    if (week < 24) {
+        # The published fetal EFW table supplies exact-week rows, used only
+        # as a clearly labelled proxy for maternal deliveries at 22+0/23+0.
+        if (day != 0L) return(NA_real_)
+        p <- switch(sex, B=PCT10_BOYS, G=PCT10_GIRLS, U=PCT10_UNISEX)
+        return(as.numeric(p[as.character(week)]) / 1000)
+    }
+    ref <- INTERGROWTH_REFERENCE
+    boy <- ref$p10_g[ref$sex == "B" & ref$week == week & ref$day == day]
+    girl <- ref$p10_g[ref$sex == "G" & ref$week == week & ref$day == day]
+    if (length(boy) != 1L || length(girl) != 1L) return(NA_real_)
+    (switch(sex, B=boy, G=girl, U=(boy+girl)/2)) / 1000
 }
 
 classify_sga <- function(bw_kg, ga_weeks, gender_val = NA_character_) {
     pct10 <- mapply(get_10th_pct, ga_weeks, gender_val, USE.NAMES = FALSE)
     ifelse(is.na(bw_kg) | is.na(pct10), NA_character_,
            ifelse(bw_kg < pct10, "SGA", "AGA"))
+}
+
+# Resuscitation at birth (Neotree `resus`): coded dropdown, not free text.
+#   Norm / NONE        no resuscitation (reference level)
+#   Stim, Suc, O2      stimulation / suction / oxygen, alone or in combination
+#   BVM, CPR           bag-valve-mask; chest compressions (highest level wins)
+#   UNK or blank       "Unknown" -- an answer option on the form (Malawi), kept
+#                      as its own level and never folded into "None"
+# Stops on any code it does not recognise, so nothing can fall into a catch-all.
+resus_category <- function(resus) {
+    x <- toupper(trimws(as.character(resus)))
+    unknown <- is.na(resus) | x %in% c("", "NA", "NR", "U", "UNK", "UNKNOWN",
+                                       "-6", "-7", "-8", "-9")
+    cat <- dplyr::case_when(
+        unknown                                   ~ "Unknown",
+        x %in% c("NONE", "NORM", "NO", "N", "FALSE", "0") ~ "None",
+        grepl("CPR|CARDIO", x)                    ~ "CPR",
+        grepl("BVM|BAG.*VALVE|MASK", x)           ~ "BVM",
+        grepl("STIM|SUC|O2|OXYGEN", x)            ~ "Stimulation/Suction/O2",
+        TRUE                                      ~ NA_character_)
+    if (anyNA(cat))
+        stop("resus_category(): unrecognised code(s): ",
+             paste(unique(x[is.na(cat)]), collapse = ", "))
+    factor(cat, levels = c("None", "Stimulation/Suction/O2", "BVM", "CPR", "Unknown"))
 }
 
 make_svn_category <- function(sga, ga_weeks) {
@@ -244,13 +308,19 @@ bw_category <- function(bw_kg) {
         bw_kg <  1.000        ~ "ELBW",
         bw_kg <  1.500        ~ "VLBW",
         bw_kg <  2.500        ~ "LBW",
-        bw_kg <= 4.000        ~ "NBW",
+        # HBW is >= 4,000 g (manuscript: NBW 2,500-3,999 g, HBW >= 4,000 g;
+        # Neotree bwgroup puts 4,000 g in HBW). Previously "<= 4.000" put
+        # babies of exactly 4,000 g in NBW (fix, 17 Sep 2026).
+        bw_kg <  4.000        ~ "NBW",
         TRUE                  ~ "HBW"
     )
 }
 
 bw_category_from_kg              <- bw_category
 sga_category_from_gestational_age <- make_svn_category
+
+# Shared ANC count/category rules, including recovered historical labels.
+source(file.path(PROJECT_ROOT, "config", "anc_rules.R"))
 
 # ==============================================================================
 # HELPER FUNCTIONS - OUTCOMES
@@ -377,6 +447,8 @@ load_nnu_data <- function(sites = c("KCH","SMCH")) {
 
     combined <- bind_rows(datasets)
 
+    if (!"antenatalcare_category" %in% names(combined)) combined$antenatalcare_category <- NA_character_
+    combined$antenatalcare_category <- anc_band(combined$antenatalcare, combined$antenatalcare_category)
     combined <- filter_study_period(combined, date_col = "adm_date_parsed")
 
     if (POPULATION == "USS") {
@@ -450,10 +522,27 @@ process_nnu_data <- function(raw) {
         filter(is.finite(bw_kg), bw_kg >= BW_MIN_KG, bw_kg <= BW_MAX_KG) %>%
         mutate(bw_cat = bw_category(bw_kg))
 
-    svn <- lbw %>%
+    ga_valid <- lbw %>%
         filter(is.finite(gestation_weeks),
                gestation_weeks >= GA_MIN_NNU,
-               gestation_weeks <= GA_MAX) %>%
+               gestation_weeks <= GA_MAX)
+
+    # Audit only (see IMPLAUSIBLE_BW_* above): no record is excluded.
+    flag <- is_implausible_bw_for_ga(ga_valid$bw_kg, ga_valid$gestation_weeks)
+    flagged_bw_ga <- ga_valid[flag, , drop = FALSE]
+    unreviewed <- setdiff(flagged_bw_ga$uid, BW_GA_REVIEWED_KEEP_UIDS)
+    cat(sprintf(paste0("  Plausibility check (BW < %.0f g at GA >= %d wk, not excluded): ",
+                       "%d record(s) retained after review (KCH %d, SMCH %d)\n"),
+                IMPLAUSIBLE_BW_TERM_MAX_KG * 1000,
+                IMPLAUSIBLE_BW_TERM_GA_MIN_WEEKS,
+                nrow(flagged_bw_ga),
+                sum(flagged_bw_ga$facility == "KCH"),
+                sum(flagged_bw_ga$facility == "SMCH")))
+    if (length(unreviewed) > 0)
+        warning("Birthweight < 1,000 g at GA >= 37 wk for UID(s) not yet reviewed: ",
+                paste(unreviewed, collapse = ", "), call. = FALSE)
+
+    svn <- ga_valid %>%
         mutate(
             sga_status   = classify_sga(bw_kg, gestation_weeks, gender_std),
             svn_category = make_svn_category(sga_status, gestation_weeks)
@@ -464,7 +553,9 @@ process_nnu_data <- function(raw) {
         filter(!is.na(outcome_bin))
 
     list(raw = raw, processed = processed,
-         lbw_filtered = lbw, svn_filtered = svn, analysis = analysis)
+         lbw_filtered = lbw, ga_filtered = ga_valid,
+         flagged_bw_ga_retained = flagged_bw_ga,
+         svn_filtered = svn, analysis = analysis)
 }
 
 # ==============================================================================
@@ -472,10 +563,15 @@ process_nnu_data <- function(raw) {
 # ==============================================================================
 
 process_maternal_data <- function(raw) {
+    gender_col <- if ("sexdis" %in% names(raw)) "sexdis"
+                  else if ("gender_std" %in% names(raw)) "gender_std"
+                  else if ("gender" %in% names(raw)) "gender"
+                  else NULL
     raw %>%
         mutate(
             bw_kg          = bw_kg_canonical(.),
             gestation_weeks= suppressWarnings(as.numeric(gestation)),
+            gender_std     = if (!is.null(gender_col)) .data[[gender_col]] else NA_character_,
             outcome_norm   = normalise_outcome(neotreeoutcome),
             matageyrs_num  = suppressWarnings(as.numeric(matageyrs))
         )
@@ -566,13 +662,14 @@ add_prop_ci <- function(df, n_col = "deaths", total_col = "total_admissions",
 svn_caption <- function(extra = NULL) {
     base <- paste0(
         "KCH = Kamuzu Central Hospital, Malawi; ",
-        "SMCH = Sally Mugabe Children's Hospital, Zimbabwe. 2022-2025.")
+        "SMCH = Sally Mugabe Central Hospital, Zimbabwe. 2022-2025.")
     pop_note <- if (POPULATION == "USS") " [USS-confirmed GA subset]" else ""
     full <- paste0(base, pop_note)
     if (!is.null(extra)) paste0(full, "\n", extra) else full
 }
 
 # Suppress default Rplots.pdf generation
+if (capabilities("cairo")) options(bitmapType = "cairo")
 pdf(file = NULL)
 options(device = function() { pdf(file = NULL) })
 

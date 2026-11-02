@@ -1,0 +1,33 @@
+script,manuscript,purpose,uss_pass
+helper_Table01_SVN_by_site_and_stillbirth_OR.R,Table 1 and Results,SVN prevalence by site and pooled stillbirth odds,TRUE
+Table_01a_maternal_characteristics.R,Table 1,Maternal delivery characteristics,TRUE
+Table_01b_stillbirth_rate_and_OR.R,Table 1,Stillbirth rates and confidence intervals,TRUE
+Figure_01_cohort_flowchart.R,Supplementary Figure S1 and Results,Cohort selection and exclusion counts,TRUE
+Figure_02_stillbirth_OR_by_SVN.R,Supplementary Figure S2,Stillbirth odds graph and source values,TRUE
+Table_02_NNU_characteristics.R,Table 2,Admission characteristics and missingness,TRUE
+Table_03_04_distribution_and_CFR.R,Table 3 and Supplementary Table S1,Case fatality and phenotype by birthweight cross-tabulation,TRUE
+Table_05_timing_of_death.R,Supplementary Tables S2a and S2b,Timing of death by site and phenotype,TRUE
+Figure_05_timing_of_death_by_SVN.R,Supplementary Figure S3,Timing of death graph and source values,TRUE
+Table_06_length_of_stay.R,Supplementary Table S3,Survivor length of stay by phenotype and birthweight,TRUE
+helper_Table03_06_kruskal_wallis_cfr_los.R,Results,Tests across phenotype and birthweight groups,TRUE
+Table_07a_causes_of_death.R,Supplementary Table S4a,Leading causes of death pooled across sites,TRUE
+Table_07bc_causes_of_death_by_site.R,Supplementary Tables S4b and S4c,Leading causes of death separately by site,TRUE
+Table_08_univariable_predictors_AllSVN.R,Table 4 and Results,SVN and Term-AGA univariable odds and interaction tests,TRUE
+Table_09_temperature_categorical_ORs.R,Supplementary Table S6,Phenotype temperature odds and counts,TRUE
+dep_Table09_temperature_categorical_OR.R,Figure 1 dependency,Temperature odds and denominators for figure and pooled SVN column,TRUE
+helper_Table09_temperature_svn_interaction.R,Results temperature interaction,Continuous temperature interaction across the four phenotypes,TRUE
+Table_10_cfr_by_resuscitation.R,Supplementary Table S5,Case fatality by resuscitation category,TRUE
+Table_11_CFR_by_antenatal_steroids.R,Supplementary Table S7 and Results,Steroid coverage and associations including site-stratified estimates,TRUE
+MV_regression_SVN_population_continuous_temperature.R,Results and Discussion,Adjusted mortality associations in SVN admissions,TRUE
+MV_regression_whole_cohort_continuous_temperature.R,Results and Discussion,Adjusted mortality associations in all admissions,TRUE
+helper_HIV_CFR_exposed_vs_unexposed.R,Results,HIV testing and exposed versus unexposed case fatality,TRUE
+Appendix_Table_Sx_univariable_full_vs_USS_vs_nonUSS.R,Supplementary Table S9,Full versus ultrasound and non-ultrasound univariable analyses,FALSE
+Supplementary_Table_S1_validation_CFR_full_vs_USS.R,Supplementary Table S8,Full versus ultrasound and non-ultrasound phenotype case fatality,FALSE
+Figure_07_temperature_categorical_ORs_by_SVN.R,Figure 1 dependency and Supplementary Table S6,Pooled All-SVN temperature odds and figure source values,TRUE
+helper_Table09_temperature_AllSVN_column.R,Supplementary Table S6,Pooled All-SVN column,TRUE
+Supplementary_Table_S10_outcome_exclusion_comparison.R,Supplementary Table S10 and Results,Excluded versus included admission comparison with missingness,FALSE
+Manuscript_temperature_and_ANC.R,Table 4 continuous temperature and ANC Results,Whole-cohort versus All-SVN versus Term-AGA estimates and ANC missingness,TRUE
+Figure_1_manuscript_temperature.R,Figure 1,Temperature figure with explicit thresholds and count panel,TRUE
+Manuscript_table_presentations.R,Table 3 and Supplementary Table S1,Wald odds ratios and whole-cohort percentages used in Word,TRUE
+helper_HIV_SVN_distribution.R,Results,SVN phenotype and birthweight distribution by maternal HIV status,TRUE
+Manuscript_text_values.R,Abstract Methods Results Discussion and supplementary notes,Derived values quoted in the manuscript text,TRUE

@@ -1,88 +1,30 @@
-# small-vulnerable-newborns
+# Small and vulnerable newborns (SVN) analysis
 
-Analysis code for the study **"Small vulnerable newborn outcomes across
-Malawi and Zimbabwe: secondary analysis of a prospective neonatal cohort"**
-(Neotree, Kamuzu Central Hospital and Sally Mugabe Central Hospital,
-2022-2025).
+R code for the analysis of small and vulnerable newborn phenotypes, stillbirth and neonatal mortality at Kamuzu Central Hospital (KCH, Malawi) and Sally Mugabe Central Hospital (SMCH, Zimbabwe), 1 January 2022 to 31 December 2025, using Neotree data. It produces every table, figure and number in the manuscript.
 
-This repository contains the complete R analysis pipeline so that every
-table and figure in the manuscript is reproducible. The underlying clinical
-data are confidential and are **not** included — see
-[DATA_AVAILABILITY.md](DATA_AVAILABILITY.md).
+No patient data are included. The analysis runs on six locked Neotree exports held under the study's data governance arrangements (see `input/README.md`).
 
-## What the study does
+## Run
 
-Compares the INTERGROWTH-21st small-vulnerable-newborn (SVN) framework
-(Term-AGA, Term-SGA, Preterm-AGA, Preterm-SGA) against birth-weight-alone
-(low birth weight, LBW) classification for describing outcomes among live
-births and neonatal-unit admissions, examines independent predictors of
-neonatal death (univariable and multivariable), and tests whether SVN
-classification derived from routinely estimated gestational age holds up
-when validated against an ultrasound-dated subset.
+Use R 4.6.1 or later with the packages in `config/packages.csv` (`Rscript install_dependencies.R` installs any missing ones from CRAN). Run in a UTF-8 locale (for example `LC_ALL=C.UTF-8`). Place the six input files in `input/`, then:
 
-## Repository layout
-
-```
-scripts/                  All R analysis and figure scripts
-input/                    Confidential data goes here (not committed) -- see input/README.md
-output/                   Pipeline outputs land here (not committed)
-run_all.R                 Runs the whole pipeline end to end
-FIGURE_TABLE_SOURCES.md   Map of each manuscript table/figure -> source script
-DATA_AVAILABILITY.md      Data/code availability statement and access terms
-```
-
-## Pipeline
-
-- Every script sources `scripts/00a_setup_shared.R`, which defines the
-  INTERGROWTH-21st SGA lookup, SVN classification, plausible-range
-  outlier handling, colour palettes, plotting theme, and the six data-file
-  paths (all resolved relative to the script's own location, so the repo
-  can be cloned anywhere).
-- Most scripts read only the raw `input/` data. A small number of
-  `Figure_*`/`helper_*` scripts read a CSV written by an earlier
-  `Table_*`/`dep_*` script in the same run — `run_all.R` runs everything in
-  the correct order automatically.
-- Two scripts (`MV_regression_SVN_population.R`,
-  `MV_regression_whole_cohort.R`) fit the multivariable logistic regression
-  models reported in the manuscript's predictor tables, alongside the
-  univariable-only tables produced by the rest of the pipeline.
-- `run_all.R` runs the whole pipeline twice: once for the full
-  gestational-age-valid cohort (`POPULATION = "all"`) and once for the
-  ultrasound-dated subset (`POPULATION = "USS"`).
-
-### Run
-
-```bash
-# 1. Place the six required data files in input/ -- see input/README.md
-# 2. From the repository root:
+```sh
+Rscript run_all.R --check
 Rscript run_all.R
 ```
 
-`run_all.R` checks `input/` is complete before doing anything else, installs
-any missing R packages, and prints a running log plus a final pass/fail
-summary. A failure in one script does not stop the rest of the run.
+`--check` verifies the inputs against `config/locked_inputs.csv`, the INTERGROWTH reference table and the packages. Each script runs first for all admissions (`output/all/`) and then for the ultrasound-dated subset (`output/uss/`); scripts with `uss_pass = FALSE` in `config/scripts.csv` run only once because they already compare the subgroups. To read inputs or write results elsewhere, set `LBW_INPUT_DIR` and `LBW_OUTPUT_DIR`.
 
-Outputs are written to `output/all/{tables,graphs}/` and
-`output/uss/{tables,graphs}/`.
+`Rscript run_all.R --validate` runs the data-free checks used by GitHub Actions.
 
-## Key analytical choices
+## Contents
 
-- SGA: birth weight below the sex-specific INTERGROWTH-21st 10th centile
-  (unisex table where sex is missing); preterm: <37 weeks gestation.
-- The multivariable regression models exclude birth weight and gestational
-  age as predictors (they define the SVN phenotype) and pre-eclampsia
-  (not estimable within the SVN-only population); missing values for
-  variables with substantive missingness are retained as an explicit
-  "Not recorded" level, other predictors are analysed on complete cases.
-- Antenatal corticosteroid analysis is restricted to the clinically eligible
-  window (24+0 to 34+6 weeks gestation).
-- Admission temperature is modelled both continuously (per 1 degC) and
-  categorically (reference 36.5-37.5 degC).
-- All scripts are ASCII-only (a legacy requirement from the UCL Data Safe
-  Haven environment the analysis was originally run in).
+- `scripts/`: 32 analysis scripts and the shared setup `00a_setup_shared.R`.
+- `config/`: script order, input and reference checksums, packages and the antenatal-care helpers.
+- `references/`: INTERGROWTH-21st 10th-centile birthweight table and its sources.
+- `docs/MANUSCRIPT_MAP.md`: which script produces each manuscript item.
+- `tests/`: data-free project checks.
 
-## Citation
+## Classification rules
 
-If you use this code, please cite the manuscript (in preparation) and this
-repository — see [CITATION.cff](CITATION.cff) and
-[DATA_AVAILABILITY.md](DATA_AVAILABILITY.md).
+SGA is birthweight below the sex-specific INTERGROWTH-21st 10th centile at the recorded week and day (24+0 to 42+0); with unrecorded sex, the midpoint of the male and female centiles is used. Gestation `33.4` means 33 weeks 4 days. Invalid day endings are unclassified. Maternal births at exactly 22+0 and 23+0 use fetal estimated-weight 10th centiles (481 g, 538 g) as proxies. Preterm is below 37+0 weeks.

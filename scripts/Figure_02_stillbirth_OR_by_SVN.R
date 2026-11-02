@@ -12,12 +12,16 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
 suppressPackageStartupMessages({library(dplyr); library(tidyr); library(broom); library(ggplot2); library(patchwork)})
-cat("\n=== fig7_stillbirth_risk_combined.R ===\n")
+cat("\n=== Figure_02_stillbirth_OR_by_SVN.R ===\n")
 
 STILLBIRTH_CODES <- c("SBF", "SBM", "STBF", "STBM")
 GA_MIN_M <- if (exists("GA_MIN_MAT")) GA_MIN_MAT else 22
@@ -28,7 +32,7 @@ base <- process_maternal_data(load_maternal_data()) %>%
     filter(is.finite(bw_kg), bw_kg >= BW_MIN_KG, bw_kg <= BW_MAX_KG,
            is.finite(gestation_weeks), gestation_weeks >= GA_MIN_M, gestation_weeks <= GA_MAX) %>%
     mutate(
-        svn     = factor(make_svn_category(classify_sga(bw_kg, gestation_weeks), gestation_weeks), levels = PH),
+        svn     = factor(make_svn_category(classify_sga(bw_kg, gestation_weeks, gender_std), gestation_weeks), levels = PH),
         sb      = as.integer(!is.na(neotreeoutcome) & toupper(trimws(neotreeoutcome)) %in% STILLBIRTH_CODES),
         late_sb = as.integer(sb == 1 & gestation_weeks >= 28)
     ) %>%
@@ -58,16 +62,18 @@ ref <- crossing(sb_scope = c("All stillbirths", "Late stillbirth (>=28w)"), cate
 or_plot <- bind_rows(all_or, late_or, ref) %>%
     mutate(
         svn_cat = factor(category, levels = PH,
-                         labels = c("Term\nnon-SGA", "Term\nSGA", "Preterm\nnon-SGA", "Preterm\nSGA")),
+                         labels = c("Term\nAGA", "Term\nSGA", "Preterm\nAGA", "Preterm\nSGA")),
         sig = ifelse(!is.na(p_value) & p_value < 0.05, "*", ""),
-        lbl = ifelse(category == "Term-AGA", "1", sprintf("%.1f%s\np<0.001", OR, sig))
+        p_lbl = ifelse(is.na(p_value), "",
+                       ifelse(p_value < 0.001, "p<0.001", sprintf("p=%.3f", p_value))),
+        lbl = ifelse(category == "Term-AGA", "1", sprintf("%.1f%s\n%s", OR, sig, p_lbl))
     )
 write.csv(or_plot %>% select(sb_scope, category, OR, CI_lower, CI_upper, p_value),
           file.path(OUTPUT_DIR, "figure_02_stillbirth_or_data.csv"), row.names = FALSE)
 
 # ---- plot --------------------------------------------------------------------
-COLS <- c("Term\nnon-SGA" = "#9E9E9E", "Term\nSGA" = "#4A90D9",
-          "Preterm\nnon-SGA" = "#F2C744", "Preterm\nSGA" = "#D98CB3")
+COLS <- c("Term\nAGA" = "#9E9E9E", "Term\nSGA" = "#4A90D9",
+          "Preterm\nAGA" = "#F2C744", "Preterm\nSGA" = "#D98CB3")
 mk <- function(scope, ttl) {
     d <- or_plot %>% filter(sb_scope == scope)
     ggplot(d, aes(svn_cat, OR, colour = svn_cat)) +
@@ -90,10 +96,10 @@ fig <- mk("All stillbirths", "A  All stillbirths") +
        mk("Late stillbirth (>=28w)", "B  Late stillbirths (>=28 weeks)") +
        plot_annotation(
            title = "Stillbirth odds ratio by SVN phenotype (combined sites, vs Term-AGA)",
-           subtitle = "Reference: Term non-SGA. Error bars = 95% CI; point = OR. Computed from current data (matches Table 2).")
+           subtitle = "Reference: Term-AGA. Error bars = 95% CI; point = OR. Panel A values match Table 1.")
 ggsave(file.path(OUTPUT_DIR_GRAPHS, "figure_02_stillbirth_or_combined.png"), fig, width = 13, height = 6.5, dpi = 300)
 ggsave(file.path(OUTPUT_DIR_GRAPHS, "figure_02_stillbirth_or_combined.pdf"), fig, width = 13, height = 6.5)
 cat("\nSaved figure_02_stillbirth_or_combined.png / .pdf and figure_02_stillbirth_or_data.csv\n")
 print(as.data.frame(or_plot %>% filter(category != "Term-AGA") %>%
       select(sb_scope, category, OR, CI_lower, CI_upper)))
-cat("fig7_stillbirth_risk_combined.R complete.\n")
+cat("Figure_02_stillbirth_OR_by_SVN.R complete.\n")

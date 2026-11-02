@@ -1,6 +1,8 @@
 # ==============================================================================
 # Purpose: Table 3 -- case fatality (deaths per 1,000 admissions) by SVN
 # phenotype and by birth-weight category, by site and combined, with 95% CI.
+# Table 3 also carries a pooled "All SVN" row (Term-SGA + Preterm-AGA +
+# Preterm-SGA) in the by-phenotype CFR.
 # Table 4 -- distribution of admissions by SVN phenotype x birth-weight
 # category (both sites combined), n and % of all admissions.
 #
@@ -13,7 +15,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -69,6 +75,10 @@ cfr_by <- function(df, gcol, levels){
         mutate(category=factor(category, levels=levels)) %>% arrange(category, site)
 }
 cfr_svn <- cfr_by(d, "svn_category", PH)
+cfr_pooled <- cfr_by(d %>% filter(svn_category != "Term-AGA") %>% mutate(grp = "All SVN"),
+                     "grp", "All SVN")
+cfr_svn <- bind_rows(mutate(cfr_svn, category = as.character(category)),
+                     mutate(cfr_pooled, category = as.character(category)))
 cfr_bw  <- cfr_by(filter(d, !is.na(bw_category)), "bw_category", BW)
 write.csv(cfr_svn, file.path(OUT2,"table_03_cfr_by_svn.csv"), row.names=FALSE)
 write.csv(cfr_bw,  file.path(OUT2,"table_03_cfr_by_bw.csv"),  row.names=FALSE)

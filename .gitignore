@@ -1,17 +1,15 @@
-# Confidential patient-level data -- never committed
-input/*.csv
-
-# Generated outputs -- reproducible from input/ + run_all.R, never committed
-output/**
-!output/.gitkeep
-
-# R artefacts
+# Never commit patient-level data, outputs or execution logs.
+/input/*
+!/input/README.md
+/output/*
+!/output/README.md
 .Rhistory
 .RData
+.Ruserdata
 .Rproj.user/
-Rplots.pdf
-
-# OS / editor cruft
 .DS_Store
-~$*
-*.tmp
+Rplots.pdf
+renv/library/
+renv/staging/
+*.log
+*.zip

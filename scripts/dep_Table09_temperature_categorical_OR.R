@@ -19,7 +19,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -53,11 +57,11 @@ classify_temp_cat <- function(temp) {
 }
 
 TEMP_LABELS <- c(
-  "1_SevereHypothermia" = "Severe hypothermia (<32.0°C)",
-  "2_Hypothermia"       = "Hypothermia (32.0–35.9°C)",
-  "3_LowNormal"         = "Low-normal (36.0–36.4°C)",
-  "4_Normal"            = "Normal (36.5–37.5°C) [Reference]",
-  "5_Hyperthermia"      = "Hyperthermia (>37.5°C)"
+  "1_SevereHypothermia" = "Severe hypothermia (<32.0\u00b0C)",
+  "2_Hypothermia"       = "Hypothermia (32.0\u201335.9\u00b0C)",
+  "3_LowNormal"         = "Low-normal (36.0\u201336.4\u00b0C)",
+  "4_Normal"            = "Normal (36.5\u201337.5\u00b0C) [Reference]",
+  "5_Hyperthermia"      = "Hyperthermia (>37.5\u00b0C)"
 )
 
 # ============================================================
@@ -152,9 +156,27 @@ run_cat_logistic <- function(df, group_label) {
         ci_lower = round(conf.low, 4),
         ci_upper = round(conf.high, 4),
         p_value  = round(p.value, 6),
-        note     = paste0("OR vs Normal (36.5-37.5°C), n=", ref_n, " in reference group")
+        note     = paste0("OR vs Normal (36.5-37.5\u00b0C), n=", ref_n, " in reference group")
       ) %>%
       select(group, temp_cat, n_total, n_events, OR, ci_lower, ci_upper, p_value, note)
+
+    # Categories with no deaths (or no survivors) give a separated fit
+    # (OR ~0 or ~Inf with an unbounded CI); report them as not estimable
+    # rather than as a spurious point estimate.
+    cat_ev <- df %>% group_by(temp_cat) %>%
+      summarise(ev = sum(outcome_bin == 1), ne = sum(outcome_bin == 0), .groups = "drop") %>%
+      mutate(temp_cat = as.character(temp_cat))
+    sep_cats <- cat_ev$temp_cat[cat_ev$ev == 0 | cat_ev$ne == 0]
+    tidy_out <- tidy_out %>%
+      mutate(
+        not_est  = temp_cat %in% sep_cats,
+        OR       = ifelse(not_est, NA_real_, OR),
+        ci_lower = ifelse(not_est, NA_real_, ci_lower),
+        ci_upper = ifelse(not_est, NA_real_, ci_upper),
+        p_value  = ifelse(not_est, NA_real_, p_value),
+        note     = ifelse(not_est, "Not estimable (no deaths or no survivors in category)", note)
+      ) %>%
+      select(-not_est)
 
     # Add reference row
     ref_row <- tibble(

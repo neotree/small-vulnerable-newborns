@@ -14,7 +14,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -33,7 +37,7 @@ base <- process_maternal_data(load_maternal_data()) %>%
            is.finite(gestation_weeks), gestation_weeks >= GA_MIN_M, gestation_weeks <= GA_MAX) %>%
     mutate(
         facility     = factor(as.character(facility), levels = c("KCH", "SMCH")),
-        sga_status   = classify_sga(bw_kg, gestation_weeks),
+        sga_status   = classify_sga(bw_kg, gestation_weeks, gender_std),
         svn_category = factor(make_svn_category(sga_status, gestation_weeks), levels = PH),
         bw_cat       = factor(bw_category_from_kg(bw_kg), levels = BWC),
         stillbirth   = as.integer(!is.na(neotreeoutcome) &

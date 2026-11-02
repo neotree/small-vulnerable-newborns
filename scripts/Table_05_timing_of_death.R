@@ -6,7 +6,7 @@
 #
 # Definitions: age at death = (age at admission in hours, capped at 672) / 24
 # + (time from admission to death, in days). Population = svn_filtered
-# deaths (n=5,348).
+# deaths (n=5,344).
 #
 # Output: table_05_timing_by_site.csv, table_05_timing_by_phenotype.csv,
 #         table_05_timing_by_svn_vs_termaga.csv, table_05_timing_by_bw.csv,
@@ -15,7 +15,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")

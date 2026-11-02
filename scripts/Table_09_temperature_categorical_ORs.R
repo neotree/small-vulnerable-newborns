@@ -12,7 +12,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -45,13 +49,20 @@ or_temp <- function(df, label){
     fit <- glm(outcome_bin ~ temp_cat, data=df2, family=binomial())
     res <- broom::tidy(fit, conf.int=TRUE, exponentiate=TRUE) %>% filter(term!="(Intercept)")
     ref <- levels(df2$temp_cat)[1]
+    # Categories with no deaths or no survivors cannot be estimated (separation)
+    sep <- df2 %>% group_by(temp_cat) %>%
+        summarise(ev=sum(outcome_bin==1), ne=sum(outcome_bin==0), .groups="drop") %>%
+        filter(ev==0 | ne==0) %>% pull(temp_cat) %>% as.character()
     bind_rows(tibble(term=paste0("temp_cat",ref), estimate=1, conf.low=NA, conf.high=NA, p.value=NA), res) %>%
         transmute(group=label,
                   temp_cat=sub("^temp_cat","",term),
-                  OR=round(estimate,2),
-                  ci=ifelse(is.na(conf.low),"ref",sprintf("%.2f-%.2f",conf.low,conf.high)),
-                  p=ifelse(is.na(p.value),NA,signif(p.value,3)),
-                  note="")
+                  not_est=temp_cat %in% sep,
+                  OR=ifelse(not_est, NA, round(estimate,2)),
+                  ci=ifelse(not_est, "not estimable",
+                            ifelse(is.na(conf.low),"ref",sprintf("%.2f-%.2f",conf.low,conf.high))),
+                  p=ifelse(not_est | is.na(p.value),NA,signif(p.value,3)),
+                  note=ifelse(not_est, "no deaths or no survivors in category", "")) %>%
+        select(-not_est)
 }
 
 overall <- or_temp(d, "All phenotypes")

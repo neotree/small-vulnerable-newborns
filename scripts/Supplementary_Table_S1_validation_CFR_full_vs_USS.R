@@ -22,7 +22,11 @@ POPULATION <- "all"
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
@@ -140,6 +144,7 @@ compute_cfr_by_site <- function(df, label) {
       n          = n(),
       n_deaths   = sum(outcome_bin),
       cfr_pct    = round(n_deaths / n * 100, 1),
+      cfr_per1000 = round(n_deaths / n * 1000),
       .groups    = "drop"
     ) %>%
     bind_rows(
@@ -151,15 +156,17 @@ compute_cfr_by_site <- function(df, label) {
           n            = n(),
           n_deaths     = sum(outcome_bin),
           cfr_pct      = round(n_deaths / n * 100, 1),
+          cfr_per1000  = round(n_deaths / n * 1000),
           .groups      = "drop"
         )
     ) %>%
-    select(population, facility, svn_category, n, n_deaths, cfr_pct)
+    select(population, facility, svn_category, n, n_deaths, cfr_pct, cfr_per1000)
 }
 
 cfr_by_site <- bind_rows(
   compute_cfr_by_site(base_all, "full"),
-  compute_cfr_by_site(base_uss, "USS")
+  compute_cfr_by_site(base_uss, "USS"),
+  compute_cfr_by_site(base_nonuss, "Non-USS")
 )
 
 cat("\nCFR by SVN group, population and site (Supplementary Table S1 layout):\n")
@@ -260,11 +267,19 @@ run_steroid_pretermAGA <- function(df, label) {
 
   ct <- table(df_sub$steroids, df_sub$outcome_bin)
   pval <- tryCatch(fisher.test(ct)$p.value, error = function(e) NA)
+  # Crude OR (steroids vs none) with Wald 95% CI, and CFR per 1,000.
+  or_val <- (d_yes * (n_no - d_no)) / ((n_yes - d_yes) * d_no)
+  or_se  <- sqrt(1 / d_yes + 1 / (n_yes - d_yes) + 1 / d_no + 1 / (n_no - d_no))
 
   tibble(
     population = label,
     n_steroids = n_yes, deaths_steroids = d_yes, cfr_steroids = cfr_yes,
     n_no_steroids = n_no, deaths_no = d_no, cfr_no_steroids = cfr_no,
+    cfr_steroids_per1000 = round(d_yes / n_yes * 1000),
+    cfr_no_steroids_per1000 = round(d_no / n_no * 1000),
+    OR = round(or_val, 2),
+    OR_ci_lower = round(exp(log(or_val) - 1.959964 * or_se), 2),
+    OR_ci_upper = round(exp(log(or_val) + 1.959964 * or_se), 2),
     p_value = round(pval, 4),
     note = "Preterm-AGA, GA 24-34 wks only"
   )
@@ -284,18 +299,60 @@ print(steroid_comp)
 # ============================================================
 
 # Key finding: does each population replicate the same conclusion?
+# Values are computed from the results above. HIV is not analysed in this
+# script (see the MV_regression_* scripts and helper_HIV_CFR_exposed_vs_unexposed.R).
 cat("\n=== Validation Summary ===\n")
+
+svn_order <- c("Term-AGA", "Term-SGA", "Preterm-AGA", "Preterm-SGA")
+
+# Gradient: CFR strictly increasing across svn_order, overall and at each site
+gradient_ok <- function(cfr_tab, pop_overall, pop_site) {
+  overall <- cfr_tab %>% filter(population == pop_overall) %>%
+    slice(match(svn_order, svn_category)) %>%
+    mutate(per1000 = n_deaths / n * 1000) %>% pull(per1000)
+  by_site <- cfr_by_site %>% filter(population == pop_site, svn_category %in% svn_order) %>%
+    group_by(facility) %>%
+    summarise(ok = all(diff(n_deaths[match(svn_order, svn_category)] /
+                             n[match(svn_order, svn_category)]) > 0), .groups = "drop")
+  sprintf("%s (overall %s; KCH %s; SMCH %s)",
+          ifelse(all(diff(overall) > 0) && all(by_site$ok), "Yes", "No"),
+          paste(sprintf("%.0f", overall), collapse = " < "),
+          ifelse(by_site$ok[by_site$facility == "KCH"], "ordered", "not ordered"),
+          ifelse(by_site$ok[by_site$facility == "SMCH"], "ordered", "not ordered"))
+}
+
+temp_summary <- function(pop) {
+  tt <- temp_or_comparison %>% filter(population == pop)
+  o  <- tt %>% filter(svn_group == "Overall")
+  sprintf("%s (overall OR %.2f per 1 degC decrease; OR > 1 in %d of %d phenotypes)",
+          ifelse(all(tt$OR_per_1degC_decrease > 1), "Yes", "No"),
+          o$OR_per_1degC_decrease,
+          sum(tt$OR_per_1degC_decrease[tt$svn_group != "Overall"] > 1),
+          sum(tt$svn_group != "Overall"))
+}
+
+steroid_summary <- function(pop) {
+  st <- steroid_comp %>% filter(population == pop)
+  if (nrow(st) == 0) return("Not estimable")
+  sprintf("%s (%.0f vs %.0f per 1,000; OR %.2f, %.2f-%.2f; p%s)",
+          ifelse(st$p_value < 0.05 & st$OR < 1, "Yes", "No"),
+          st$cfr_steroids_per1000, st$cfr_no_steroids_per1000,
+          st$OR, st$OR_ci_lower, st$OR_ci_upper,
+          ifelse(st$p_value < 0.001, "<0.001", sprintf("=%.3f", st$p_value)))
+}
 
 summary_table <- tibble(
   finding = c(
-    "SVN mortality gradient (T-AGA < T-SGA < Pt-AGA < Pt-SGA)",
-    "Temperature: OR per 1 degC decrease > 1 (all groups)",
-    "Steroid benefit in Preterm-AGA (p<0.05)",
-    "HIV no independent effect on NND"
+    "SVN mortality gradient (T-AGA < T-SGA < Pt-AGA < Pt-SGA), per 1,000",
+    "Temperature: OR per 1 degC decrease > 1 (overall and all phenotypes)",
+    "Lower CFR with antenatal steroids in Preterm-AGA 24-34 wks (p<0.05)"
   ),
-  all_cohort = c("Yes (confirmed)", "Yes (overall OR 1.66)", "Yes (p=0.006)", "Yes (aOR 1.05, p=0.48)"),
-  uss_subset = c("Yes (confirmed)", "Yes (overall OR 1.85)", "Yes (p=0.047)", "Yes (see Script 31 USS)"),
-  non_uss_subset = c("Run Script 38", "Run Script 38", "Run Script 38", "Run Script 38")
+  all_cohort     = c(gradient_ok(cfr_comparison, "ALL", "full"),
+                     temp_summary("ALL"), steroid_summary("ALL")),
+  uss_subset     = c(gradient_ok(cfr_comparison, "USS", "USS"),
+                     temp_summary("USS"), steroid_summary("USS")),
+  non_uss_subset = c(gradient_ok(cfr_comparison, "Non-USS", "Non-USS"),
+                     temp_summary("Non-USS"), steroid_summary("Non-USS"))
 )
 
 print(summary_table)

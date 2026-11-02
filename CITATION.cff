@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this code, please cite the associated manuscript and/or this repository."
-title: "small-vulnerable-newborns: analysis code for Small vulnerable newborn outcomes across Malawi and Zimbabwe"
+title: "small-vulnerable-newborns: analysis code for Small vulnerable newborn outcomes across Zimbabwe and Malawi"
 type: software
 authors:
   - given-names: "H"
@@ -16,8 +16,8 @@ authors:
     family-names: "Mangiza"
     affiliation: "Sally Mugabe Central Hospital, Harare, Zimbabwe"
   - given-names: "E"
-    family-names: "Chintolo"
-    affiliation: "UCL Great Ormond Street Institute of Child Health"
+    family-names: "Nkosi"
+    affiliation: "UCL Great Ormond Street Institute of Child Health; Sally Mugabe Central Hospital, Harare, Zimbabwe"
   - given-names: "M"
     family-names: "Chiume"
     affiliation: "Kamuzu Central Hospital, Lilongwe, Malawi"
@@ -31,7 +31,7 @@ repository-code: "https://github.com/neotree/small-vulnerable-newborns"
 license: MIT
 preferred-citation:
   type: article
-  title: "Small vulnerable newborn outcomes across Malawi and Zimbabwe; secondary analysis of a prospective neonatal cohort"
+  title: "Small vulnerable newborn outcomes across Zimbabwe and Malawi; secondary analysis of a prospective neonatal cohort"
   authors:
     - given-names: "H"
       family-names: "Gannon"
@@ -42,7 +42,7 @@ preferred-citation:
     - given-names: "M"
       family-names: "Mangiza"
     - given-names: "E"
-      family-names: "Chintolo"
+      family-names: "Nkosi"
     - given-names: "M"
       family-names: "Chiume"
     - given-names: "S"
@@ -50,4 +50,4 @@ preferred-citation:
     - given-names: "M"
       family-names: "Heys"
   status: preprint
-  notes: "Update this entry with the final journal, volume, pages and DOI once published (target: Lancet Regional Health - Africa / BMJ Global Health)."
+  notes: "Update this entry with the final journal, volume, pages and DOI once published (target: BMJ Global Health)."

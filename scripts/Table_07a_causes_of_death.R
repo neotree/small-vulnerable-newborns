@@ -4,7 +4,7 @@
 # site.
 #
 # Definitions: population = svn_filtered (valid outcome); death totals:
-# All-SVN 4,239, Term-AGA 1,109, total 5,348.
+# All-SVN 4,235, Term-AGA 1,109, total 5,344.
 #
 # Output: table_07a_causes_by_group.csv, table_07a_causes_by_group_and_site.csv,
 #         table_07a_causes_top_wide.csv
@@ -12,7 +12,11 @@
 # --- Locate and source the shared setup (self-contained; runs from anywhere) --
 SCRIPT_DIR <- local({
     a <- commandArgs(FALSE); f <- a[grepl("^--file=", a)]
-    if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1]))) else getwd()
+    src <- Filter(Negate(is.null), lapply(sys.frames(), function(x) x$ofile))
+    if (length(src)) dirname(normalizePath(tail(src, 1)[[1]]))
+    else if (length(f)) dirname(normalizePath(sub("^--file=", "", f[1])))
+    else if (file.exists("00a_setup_shared.R")) getwd()
+    else normalizePath("scripts")
 })
 setwd(SCRIPT_DIR)
 source("00a_setup_shared.R")
