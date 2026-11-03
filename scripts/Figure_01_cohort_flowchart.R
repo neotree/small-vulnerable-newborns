@@ -9,7 +9,13 @@
 #     -> Excluded: missing/invalid birthweight
 #   After birthweight exclusion
 #     -> Excluded: missing/invalid gestational age
+#   After gestational-age exclusion
+#     -> Excluded: SGA not classifiable (invalid gestational day codes)
+#        or indeterminate outcome
 #   Analysis population (SVN-classified, determinate outcome)
+#
+# Every box in the combined chart shows the KCH / SMCH split at that step, so
+# each box equals the previous box minus the adjacent exclusion, by site.
 #
 # Output: figure_01_cohort_flowchart.png/.pdf (+ _kch, _smch),
 #         figure_01_flowchart_counts.csv (+ _kch, _smch)
@@ -304,7 +310,9 @@ build_labels <- function(total, total_kch, total_smch,
                          after_bw, after_bw_kch, after_bw_smch,
                          excl_ga, excl_ga_kch, excl_ga_smch,
                          after_ga, final, final_kch, final_smch,
-                         excl_tail, site_split = TRUE) {
+                         excl_tail, site_split = TRUE,
+                         after_ga_kch = NA, after_ga_smch = NA,
+                         excl_tail_kch = NA, excl_tail_smch = NA) {
 
     # site line appended to every box; blank for single-site charts (kch = NA)
     sl <- function(kch, smch) {
@@ -320,7 +328,7 @@ build_labels <- function(total, total_kch, total_smch,
     node_bw    <- paste0("After birthweight exclusion\n",
                          "n = ", fmt(after_bw), sl(after_bw_kch, after_bw_smch))
     node_ga    <- paste0("After gestational-age exclusion\n",
-                         "n = ", fmt(after_ga), sl(final_kch, final_smch))
+                         "n = ", fmt(after_ga), sl(after_ga_kch, after_ga_smch))
     node_final <- paste0("Analysis population\n",
                          "(valid birthweight + gestation, SVN-classified)\n",
                          "n = ", fmt(final), sl(final_kch, final_smch))
@@ -336,7 +344,7 @@ build_labels <- function(total, total_kch, total_smch,
     e_ga      <- paste0("Excluded: missing/invalid\ngestational age\n",
                         "n = ", fmt(excl_ga), sl(excl_ga_kch, excl_ga_smch))
     e_tail    <- paste0("Excluded: SGA not classifiable\nor indeterminate outcome\n",
-                        "n = ", fmt(excl_tail))
+                        "n = ", fmt(excl_tail), sl(excl_tail_kch, excl_tail_smch))
 
     if (excl_tail > 0) {
         list(
@@ -363,7 +371,10 @@ lab <- build_labels(
     excl_ga = n_excl_ga, excl_ga_kch = n_excl_ga_kch, excl_ga_smch = n_excl_ga_smch,
     after_ga = n_after_ga, final = n_final,
     final_kch = n_final_kch, final_smch = n_final_smch,
-    excl_tail = n_excl_tail, site_split = TRUE
+    excl_tail = n_excl_tail, site_split = TRUE,
+    after_ga_kch = n_after_ga_kch, after_ga_smch = n_after_ga_smch,
+    excl_tail_kch = n_after_ga_kch - n_final_kch,
+    excl_tail_smch = n_after_ga_smch - n_final_smch
 )
 
 draw_consort(
