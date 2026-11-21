@@ -13,3 +13,4 @@ renv/library/
 renv/staging/
 *.log
 *.zip
+brief.md
